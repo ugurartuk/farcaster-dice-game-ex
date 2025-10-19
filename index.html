@@ -216,15 +216,14 @@
          */
         async function authenticateFarcasterUser() {
             try {
-                // Düzeltme: authenticate fonksiyonu sdk.auth altında olmalı.
+                // Farcaster Auth isteği
                 const response = await sdk.auth.authenticate();
                 
-                // 2. Kimlik Başarılı
                 if (response && response.fid) {
                     fid = response.fid;
                     console.log(`Farcaster FID alındı: ${fid}`);
 
-                    // Durumu güncelle
+                    // Durumu güncelle ve Firebase başlat
                     statusCard.classList.remove('bg-yellow-50', 'border-yellow-200');
                     statusCard.classList.add('bg-blue-50', 'border-blue-200');
                     statusText.innerHTML = `Hoş geldin, FID: <span class="font-bold">${fid}</span>! Oyun Başlatılıyor...`;
@@ -240,11 +239,15 @@
                 statusCard.classList.remove('bg-yellow-50', 'border-yellow-200');
                 statusCard.classList.add('bg-red-50', 'border-red-200');
                 statusText.innerHTML = 'Hata: Kimlik Doğrulama Gerekli. Lütfen Mini Uygulamaya erişim izni verin.';
+
+                // Eğer auth başarısız olursa, uygulamanın hazır olmadığını bildirmemek en iyisidir.
+                // Ancak bazı durumlarda, hata ekranını göstermek için ready() çağrısı gerekebilir. 
+                // Şimdilik sadece başarılı durumda çağırıyoruz.
             }
         }
 
         /**
-         * Firebase'i başlatır, kimlik doğrular ve Firestore'dan verileri çeker.
+         * Firebase'i başlatır, kimlik doğrular, verileri çeker ve uygulamayı hazır sinyalini verir.
          */
         async function initializeFirebase() {
             try {
@@ -268,7 +271,7 @@
                 // Skor tablosu dinleyicisini başlat
                 setupScoresListener();
                 
-                // Düzeltme: ready fonksiyonu sdk.actions altında olmalı.
+                // KRİTİK DÜZELTME: Veriler yüklendikten sonra ana uygulamaya hazır sinyalini gönder.
                 await sdk.actions.ready(); 
 
                 // Başarılı yükleme durumu
@@ -280,10 +283,15 @@
                 rollButton.disabled = false;
 
             } catch (error) {
-                console.error('Firebase Başlatma Hatası:', error);
+                // Firebase veya veri yükleme hatası olursa
+                console.error('Firebase Başlatma Hatası - Detay:', error);
                 statusCard.classList.remove('bg-blue-50', 'border-blue-200');
                 statusCard.classList.add('bg-red-50', 'border-red-200');
-                statusText.innerHTML = 'Kritik Hata: Veritabanı bağlantısı kurulamadı.';
+                statusText.innerHTML = `Kritik Hata: Veritabanı bağlantısı veya veri yükleme hatası. (Hata: ${error.message.substring(0, 50)}...)`;
+                
+                // Hata durumunda dahi splash ekranının kalkması için ready() çağrısını buraya da ekleyebiliriz,
+                // ancak en temiz yol, sadece başarılı durumda çağırmaktır. Eğer yukarıdaki try bloğuna ulaşıldıysa
+                // ready() zaten çağrılacaktır.
             }
         }
         
@@ -302,7 +310,6 @@
                 // Yeni oyuncu, yeni hedef sayı belirle
                 targetNumber = generateRandomTarget();
                 currentScore = 0;
-                // Veriyi kaydetmeye gerek yok, ilk zar atışında kaydedilir.
             }
 
             playerScoreEl.textContent = currentScore;
@@ -315,26 +322,29 @@
         async function savePlayerData() {
             if (!userId) return; // Kullanıcı kimliği yoksa kaydetme
 
-            const docRef = doc(db, getPlayerDocPath(userId));
-            await setDoc(docRef, {
-                uid: userId,
-                fid: fid, // Farcaster ID'yi de kaydet (kolay tanımlama için)
-                score: currentScore,
-                target: targetNumber,
-                lastUpdated: new Date().toISOString()
-            }, { merge: true });
+            try {
+                const docRef = doc(db, getPlayerDocPath(userId));
+                await setDoc(docRef, {
+                    uid: userId,
+                    fid: fid,
+                    score: currentScore,
+                    target: targetNumber,
+                    lastUpdated: new Date().toISOString()
+                }, { merge: true });
 
-            // Ortak skor tablosunu güncelle
-            const publicDocRef = doc(db, getScoresCollectionPath(), fid.toString());
-            await setDoc(publicDocRef, {
-                fid: fid,
-                score: currentScore,
-                lastUpdated: new Date().toISOString(),
-                // Diğer Farcaster kullanıcı bilgilerini (kullanıcı adı vb.) eklemek için
-                // Farcaster API'leri kullanılabilir, şimdilik sadece FID ve skor yeterli.
-            }, { merge: true });
-            
-            console.log(`Veri başarıyla kaydedildi. Mevcut Puan: ${currentScore}, Hedef: ${targetNumber}`);
+                // Ortak skor tablosunu güncelle
+                const publicDocRef = doc(db, getScoresCollectionPath(), fid.toString());
+                await setDoc(publicDocRef, {
+                    fid: fid,
+                    score: currentScore,
+                    lastUpdated: new Date().toISOString(),
+                }, { merge: true });
+                
+                console.log(`Veri başarıyla kaydedildi. Mevcut Puan: ${currentScore}, Hedef: ${targetNumber}`);
+            } catch (error) {
+                 console.error('Veri Kaydetme Hatası:', error);
+                 rollMessageEl.textContent = 'Hata: Puan kaydedilemedi. Konsolu kontrol edin.';
+            }
         }
         
         /**
@@ -351,8 +361,10 @@
             rollButton.disabled = true;
             rollMessageEl.textContent = 'Zarlar sallanıyor...';
             
-            // Düzeltme: Haptics fonksiyonları sdk.actions altında olmalı.
-            await sdk.actions.haptics.impactOccurred({ style: 'medium' });
+            // Haptics çağrısı
+            try {
+                await sdk.actions.haptics.impactOccurred({ style: 'medium' });
+            } catch (e) { /* Haptics zorunlu değil, hata yoksayılabilir */ }
 
             // Animasyon başlangıcı
             dice1El.classList.add('rolling');
@@ -374,23 +386,21 @@
 
                 let points = 0;
                 let message = '';
+                let hapticsType = 'warning';
                 
                 // Puanlama Mantığı
                 if (total > targetNumber) {
                     points = 2;
                     message = `Tebrikler! ${total} > ${targetNumber}. +${points} Puan!`;
-                    // Düzeltme: Haptics fonksiyonları sdk.actions altında olmalı.
-                    await sdk.actions.haptics.notificationOccurred({ type: 'success' });
+                    hapticsType = 'success';
                 } else if (total === targetNumber) {
                     points = 3;
                     message = `Mükemmel! ${total} = ${targetNumber}. +${points} Puan (Eşitlik Bonusu)!`;
-                    // Düzeltme: Haptics fonksiyonları sdk.actions altında olmalı.
-                    await sdk.actions.haptics.notificationOccurred({ type: 'success' });
+                    hapticsType = 'success';
                 } else {
                     points = 0;
                     message = `Maalesef. ${total} < ${targetNumber}. +${points} Puan. Tekrar deneyin.`;
-                    // Düzeltme: Haptics fonksiyonları sdk.actions altında olmalı.
-                    await sdk.actions.haptics.notificationOccurred({ type: 'warning' });
+                    hapticsType = 'warning';
                 }
                 
                 // Puanı güncelle
@@ -403,6 +413,11 @@
                 targetNumberEl.textContent = targetNumber;
                 
                 await savePlayerData();
+                
+                try {
+                   await sdk.actions.haptics.notificationOccurred({ type: hapticsType });
+                } catch (e) { /* Haptics zorunlu değil, hata yoksayılabilir */ }
+
 
                 rollButton.disabled = false;
             }, 500); // Zar atma animasyonu süresi
