@@ -24,8 +24,8 @@
             position: relative;
             transform-style: preserve-3d;
             transition: transform 0.5s ease-out;
-            border-radius: 10px; /* Daha yumuşak köşeler */
-            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15); /* Daha belirgin gölge */
+            border-radius: 10px;
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
             background: #fff;
         }
         .dice-face {
@@ -35,7 +35,6 @@
             background: #fff;
             border: 2px solid #333;
             border-radius: 10px;
-            /* Dotlar için konumlandırma bağlamı sağlar, flex center sadece başlangıç '?' için geçerli */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -46,21 +45,17 @@
             position: absolute;
             width: 10px;
             height: 10px;
-            background: #1e3a8a; /* Indigo-800, zar rengi */
+            background: #1e3a8a;
             border-radius: 50%;
             transition: opacity 0.1s;
         }
 
         /* Dot Konumlandırma Sınıfları */
         .dot-center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
-
-        /* Köşe Noktaları (12px içeride) */
         .dot-tl { top: 12px; left: 12px; }
         .dot-tr { top: 12px; right: 12px; }
         .dot-bl { bottom: 12px; left: 12px; }
         .dot-br { bottom: 12px; right: 12px; }
-        
-        /* Orta Kenar Noktaları (Sadece 6 için kullanılır) */
         .dot-ml { top: 50%; left: 12px; transform: translateY(-50%); }
         .dot-mr { top: 50%; right: 12px; transform: translateY(-50%); }
 
@@ -73,7 +68,7 @@
             to { transform: rotateX(-5deg) rotateY(5deg); }
         }
         
-        /* Responsive ayarlar: Zar küçülünce dotları da küçült */
+        /* Responsive ayarlar */
         @media (max-width: 640px) {
             .dice {
                 width: 50px;
@@ -83,7 +78,6 @@
                 width: 8px;
                 height: 8px;
             }
-            /* Konumları da küçült */
             .dot-tl { top: 10px; left: 10px; }
             .dot-tr { top: 10px; right: 10px; }
             .dot-bl { bottom: 10px; left: 10px; }
@@ -132,7 +126,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Farcaster Kimliği alınıyor...
+                    Uygulama yükleniyor ve Farcaster Kimliği alınıyor...
                 </p>
             </div>
 
@@ -181,7 +175,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, query, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
+        // SDK'yı e-posta yoluyla içe aktarır. Bu, sizin kodunuzda doğruydu.
+        import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk'; 
 
         // Firestore ve Farcaster Ayarları
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -212,42 +207,7 @@
         const getPlayerDocPath = (uid) => `/artifacts/${appId}/users/${uid}/player_data/dice_game`;
 
         /**
-         * Başlangıçta Farcaster Quick Auth ile kullanıcı kimliğini alır.
-         */
-        async function authenticateFarcasterUser() {
-            try {
-                // Farcaster Auth isteği
-                const response = await sdk.auth.authenticate();
-                
-                if (response && response.fid) {
-                    fid = response.fid;
-                    console.log(`Farcaster FID alındı: ${fid}`);
-
-                    // Durumu güncelle ve Firebase başlat
-                    statusCard.classList.remove('bg-yellow-50', 'border-yellow-200');
-                    statusCard.classList.add('bg-blue-50', 'border-blue-200');
-                    statusText.innerHTML = `Hoş geldin, FID: <span class="font-bold">${fid}</span>! Oyun Başlatılıyor...`;
-                    
-                    await initializeFirebase();
-                } else {
-                    // Kullanıcı izni reddetti veya yanıt alınamadı
-                    throw new Error("Farcaster Quick Auth reddedildi veya FID alınamadı.");
-                }
-            } catch (error) {
-                console.error('Farcaster Kimlik Doğrulama Hatası:', error);
-                
-                statusCard.classList.remove('bg-yellow-50', 'border-yellow-200');
-                statusCard.classList.add('bg-red-50', 'border-red-200');
-                statusText.innerHTML = 'Hata: Kimlik Doğrulama Gerekli. Lütfen Mini Uygulamaya erişim izni verin.';
-
-                // Eğer auth başarısız olursa, uygulamanın hazır olmadığını bildirmemek en iyisidir.
-                // Ancak bazı durumlarda, hata ekranını göstermek için ready() çağrısı gerekebilir. 
-                // Şimdilik sadece başarılı durumda çağırıyoruz.
-            }
-        }
-
-        /**
-         * Firebase'i başlatır, kimlik doğrular, verileri çeker ve uygulamayı hazır sinyalini verir.
+         * Firebase'i başlatır ve Canvas'ın sağladığı custom token ile giriş yapar.
          */
         async function initializeFirebase() {
             try {
@@ -255,7 +215,6 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Canvas'ın sağladığı özel token ile giriş yap
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
@@ -264,34 +223,71 @@
                 
                 userId = auth.currentUser?.uid || crypto.randomUUID();
                 console.log(`Firebase UID: ${userId}`);
-                
-                // Oyuncunun mevcut puanını ve hedef sayısını yükle
-                await loadPlayerData();
+                return true; // Başarılı
+            } catch (error) {
+                console.error('Firebase Başlatma Hatası:', error);
+                // Hata durumunu görsel olarak göster
+                statusCard.classList.remove('bg-yellow-50', 'border-yellow-200');
+                statusCard.classList.add('bg-red-50', 'border-red-200');
+                statusText.innerHTML = `Kritik Hata: Veritabanı bağlantısı kurulamadı. (Hata: ${error.message.substring(0, 50)}...)`;
+                return false; // Başarısız
+            }
+        }
 
-                // Skor tablosu dinleyicisini başlat
-                setupScoresListener();
-                
-                // KRİTİK DÜZELTME: Veriler yüklendikten sonra ana uygulamaya hazır sinyalini gönder.
-                await sdk.actions.ready(); 
 
-                // Başarılı yükleme durumu
-                statusCard.classList.remove('bg-blue-50', 'border-blue-200');
-                statusCard.classList.add('bg-green-50', 'border-green-200');
-                statusText.innerHTML = `Bağlantı Başarılı. FID: <span class="font-bold">${fid}</span> | UID: ${userId}`;
+        /**
+         * Farcaster Quick Auth ile kullanıcı kimliğini alır ve uygulamayı başlatır.
+         * KRİTİK: ready() çağrısı burada finally bloğuna taşınmıştır.
+         */
+        async function startApp() {
+            let firebaseSuccess = false;
+
+            try {
+                // 1. Firebase'i başlat
+                firebaseSuccess = await initializeFirebase();
+                if (!firebaseSuccess) {
+                    // Firebase başarısız olursa, uygulamanın diğer kısımlarını çalıştırma
+                    throw new Error("Firebase init failed.");
+                }
+
+                // 2. Farcaster Auth isteği
+                const response = await sdk.auth.authenticate();
                 
-                gameArea.classList.remove('hidden');
-                rollButton.disabled = false;
+                if (response && response.fid) {
+                    fid = response.fid;
+                    console.log(`Farcaster FID alındı: ${fid}`);
+
+                    // 3. Verileri yükle
+                    await loadPlayerData();
+                    setupScoresListener();
+
+                    // 4. UI'ı hazırla (Başarı Durumu)
+                    statusCard.classList.remove('bg-yellow-50', 'border-yellow-200');
+                    statusCard.classList.add('bg-green-50', 'border-green-200');
+                    statusText.innerHTML = `Bağlantı Başarılı. FID: <span class="font-bold">${fid}</span> | UID: ${userId}`;
+                    gameArea.classList.remove('hidden');
+                    rollButton.disabled = false;
+                } else {
+                    // Kullanıcı izni reddetti veya yanıt alınamadı
+                    throw new Error("Farcaster Quick Auth reddedildi veya FID alınamadı. Mini Uygulamaya erişim izni vermeniz gerekiyor.");
+                }
 
             } catch (error) {
-                // Firebase veya veri yükleme hatası olursa
-                console.error('Firebase Başlatma Hatası - Detay:', error);
-                statusCard.classList.remove('bg-blue-50', 'border-blue-200');
-                statusCard.classList.add('bg-red-50', 'border-red-200');
-                statusText.innerHTML = `Kritik Hata: Veritabanı bağlantısı veya veri yükleme hatası. (Hata: ${error.message.substring(0, 50)}...)`;
+                console.error('Uygulama Başlatma Hatası:', error);
                 
-                // Hata durumunda dahi splash ekranının kalkması için ready() çağrısını buraya da ekleyebiliriz,
-                // ancak en temiz yol, sadece başarılı durumda çağırmaktır. Eğer yukarıdaki try bloğuna ulaşıldıysa
-                // ready() zaten çağrılacaktır.
+                // Hata durumunda UI'ı güncelle
+                statusCard.classList.remove('bg-yellow-50', 'bg-blue-50', 'border-yellow-200', 'border-blue-200');
+                statusCard.classList.add('bg-red-50', 'border-red-200');
+                statusText.innerHTML = `Hata: ${error.message}`;
+            } finally {
+                // KRİTİK DÜZELTME: Başarı ya da başarısızlık ne olursa olsun
+                // splash ekranını kaldırmak için ready() sinyalini gönder.
+                try {
+                    await sdk.actions.ready();
+                    console.log("sdk.actions.ready() çağrıldı. Splash ekranı kaldırılmalı.");
+                } catch (e) {
+                    console.error("SDK ready çağrısı başarısız oldu:", e);
+                }
             }
         }
         
@@ -320,30 +316,35 @@
          * Oyuncunun puanını ve hedef sayısını Firestore'a kaydeder.
          */
         async function savePlayerData() {
-            if (!userId) return; // Kullanıcı kimliği yoksa kaydetme
+            if (!userId) {
+                 rollMessageEl.textContent = 'Hata: Kullanıcı kimliği yok, puan kaydedilemiyor.';
+                 return; 
+            }
 
             try {
-                const docRef = doc(db, getPlayerDocPath(userId));
-                await setDoc(docRef, {
+                const playerDocRef = doc(db, getPlayerDocPath(userId));
+                await setDoc(playerDocRef, {
                     uid: userId,
-                    fid: fid,
+                    fid: fid || 'anonymous',
                     score: currentScore,
                     target: targetNumber,
                     lastUpdated: new Date().toISOString()
                 }, { merge: true });
 
-                // Ortak skor tablosunu güncelle
-                const publicDocRef = doc(db, getScoresCollectionPath(), fid.toString());
-                await setDoc(publicDocRef, {
-                    fid: fid,
-                    score: currentScore,
-                    lastUpdated: new Date().toISOString(),
-                }, { merge: true });
+                // Ortak skor tablosunu güncelle (FID varsa)
+                if (fid) {
+                    const publicDocRef = doc(db, getScoresCollectionPath(), fid.toString());
+                    await setDoc(publicDocRef, {
+                        fid: fid,
+                        score: currentScore,
+                        lastUpdated: new Date().toISOString(),
+                    }, { merge: true });
+                }
                 
                 console.log(`Veri başarıyla kaydedildi. Mevcut Puan: ${currentScore}, Hedef: ${targetNumber}`);
             } catch (error) {
                  console.error('Veri Kaydetme Hatası:', error);
-                 rollMessageEl.textContent = 'Hata: Puan kaydedilemedi. Konsolu kontrol edin.';
+                 rollMessageEl.textContent = 'Hata: Puan kaydedilemedi. İnternet bağlantınızı kontrol edin.';
             }
         }
         
@@ -351,36 +352,33 @@
          * 2 ile 12 arasında rastgele bir hedef sayı belirler.
          */
         function generateRandomTarget() {
-            return Math.floor(Math.random() * 11) + 2; // (12 - 2 + 1) = 11, + 2 (min değer)
+            return Math.floor(Math.random() * 11) + 2;
         }
         
         /**
          * Zar atma animasyonunu ve mantığını çalıştırır.
          */
         async function rollDice() {
+            if (rollButton.disabled) return;
             rollButton.disabled = true;
             rollMessageEl.textContent = 'Zarlar sallanıyor...';
             
             // Haptics çağrısı
             try {
                 await sdk.actions.haptics.impactOccurred({ style: 'medium' });
-            } catch (e) { /* Haptics zorunlu değil, hata yoksayılabilir */ }
+            } catch (e) { /* Hata yok sayılabilir */ }
 
-            // Animasyon başlangıcı
             dice1El.classList.add('rolling');
             dice2El.classList.add('rolling');
 
-            // 500ms sonra sonucu göster
             setTimeout(async () => {
                 const die1 = Math.floor(Math.random() * 6) + 1;
                 const die2 = Math.floor(Math.random() * 6) + 1;
                 const total = die1 + die2;
                 
-                // Animasyon durdurma
                 dice1El.classList.remove('rolling');
                 dice2El.classList.remove('rolling');
                 
-                // Zar görünümlerini güncelle (DOTS!)
                 updateDiceDisplay(dice1El, die1);
                 updateDiceDisplay(dice2El, die2);
 
@@ -388,7 +386,6 @@
                 let message = '';
                 let hapticsType = 'warning';
                 
-                // Puanlama Mantığı
                 if (total > targetNumber) {
                     points = 2;
                     message = `Tebrikler! ${total} > ${targetNumber}. +${points} Puan!`;
@@ -403,12 +400,10 @@
                     hapticsType = 'warning';
                 }
                 
-                // Puanı güncelle
                 currentScore += points;
                 playerScoreEl.textContent = currentScore;
                 rollMessageEl.textContent = message;
 
-                // Yeni bir hedef sayı belirle ve kaydet
                 targetNumber = generateRandomTarget();
                 targetNumberEl.textContent = targetNumber;
                 
@@ -416,7 +411,7 @@
                 
                 try {
                    await sdk.actions.haptics.notificationOccurred({ type: hapticsType });
-                } catch (e) { /* Haptics zorunlu değil, hata yoksayılabilir */ }
+                } catch (e) { /* Hata yok sayılabilir */ }
 
 
                 rollButton.disabled = false;
@@ -425,7 +420,6 @@
 
         /**
          * Zar değeri için nokta (dot) HTML'ini döndürür.
-         * Dot Konumlandırma Sınıfları CSS'te tanımlanmıştır.
          */
         function generateDiceDots(value) {
             const dotClasses = {
@@ -452,7 +446,6 @@
          * Zarın görünümünü atılan sayıya göre günceller.
          */
         function updateDiceDisplay(diceElement, value) {
-            // dice-face'in içindeki soru işaretini dot'larla değiştiriyoruz
             const diceFaceContent = generateDiceDots(value);
             diceElement.innerHTML = `<div class="dice-face">${diceFaceContent}</div>`;
         }
@@ -461,8 +454,11 @@
          * Skor tablosunu Firestore'dan dinler ve günceller.
          */
         function setupScoresListener() {
+            if (!db) return; // Firebase başlatılmadıysa geri dön
+
             const scoresRef = collection(db, getScoresCollectionPath());
-            const q = query(scoresRef, limit(10)); // İlk 10 skoru al
+            // Firestore'da 'orderBy' kullanmak yerine sadece ilk 10'u çekip istemcide sıralayacağız.
+            const q = query(scoresRef, limit(10)); 
 
             onSnapshot(q, (snapshot) => {
                 scoresListEl.innerHTML = '';
@@ -473,7 +469,6 @@
                     scores.push(doc.data());
                 });
 
-                // Skorları puana göre sırala (Firestore'da orderBy kullanmaktan kaçındık)
                 scores.sort((a, b) => (b.score || 0) - (a.score || 0));
 
                 if (scores.length === 0) {
@@ -482,15 +477,20 @@
                 }
 
                 scores.forEach((data, index) => {
-                    const isCurrentUser = data.fid == fid;
+                    // FID'nin string olduğundan emin ol
+                    const currentFid = fid ? fid.toString() : null;
+                    const dataFid = data.fid ? data.fid.toString() : null;
+
+                    const isCurrentUser = currentFid === dataFid;
                     const itemClass = isCurrentUser ? 'bg-indigo-100 border-indigo-500' : 'bg-white border-gray-200';
                     const textClass = isCurrentUser ? 'text-indigo-800 font-bold' : 'text-gray-700';
+                    const displayedFid = isCurrentUser ? 'Siz (FID: ' + dataFid + ')' : 'FID: ' + dataFid;
                     
                     const scoreItem = `
                         <div class="flex justify-between items-center p-3 rounded-lg border shadow-sm ${itemClass}">
                             <div class="flex items-center">
                                 <span class="w-6 text-center font-extrabold text-lg mr-3 ${isCurrentUser ? 'text-indigo-600' : 'text-gray-400'}">${index + 1}.</span>
-                                <span class="${textClass}">${isCurrentUser ? 'Siz (FID: ' + data.fid + ')' : 'FID: ' + data.fid}</span>
+                                <span class="${textClass}">${displayedFid}</span>
                             </div>
                             <span class="text-xl font-extrabold ${isCurrentUser ? 'text-indigo-700' : 'text-gray-900'}">${data.score || 0}</span>
                         </div>
@@ -504,7 +504,7 @@
         }
 
         // Genel fonksiyonlar
-        window.rollDice = rollDice; // HTML'den çağrılması için global yap
+        window.rollDice = rollDice; 
 
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -516,13 +516,13 @@
             document.getElementById(`tab-${tabName}`).classList.add('border-indigo-500', 'text-indigo-600', 'hover:text-indigo-800');
         }
 
-        // Başlangıçta oyun sekmesini göster
+        // Başlangıç fonksiyonu
         window.onload = () => {
             showTab('game');
-            authenticateFarcasterUser();
+            startApp(); // Yeni ana başlatma fonksiyonu
         };
 
-        window.showTab = showTab; // HTML'den çağrılması için global yap
+        window.showTab = showTab; 
     </script>
 </body>
 </html>
