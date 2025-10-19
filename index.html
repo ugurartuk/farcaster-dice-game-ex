@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farcaster Zar Atma Oyunu</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .dice-container {
+            perspective: 600px;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .dice {
+            width: 60px;
+            height: 60px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s ease-out;
+            border-radius: 10px; /* Daha yumuşak köşeler */
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15); /* Daha belirgin gölge */
+            background: #fff;
+        }
+        .dice-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border: 2px solid #333;
+            border-radius: 10px;
+            /* Dotlar için konumlandırma bağlamı sağlar, flex center sadece başlangıç '?' için geçerli */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* Zar Noktaları (Dots) */
+        .dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #1e3a8a; /* Indigo-800, zar rengi */
+            border-radius: 50%;
+            transition: opacity 0.1s;
+        }
+
+        /* Dot Konumlandırma Sınıfları */
+        .dot-center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+        /* Köşe Noktaları (12px içeride) */
+        .dot-tl { top: 12px; left: 12px; }
+        .dot-tr { top: 12px; right: 12px; }
+        .dot-bl { bottom: 12px; left: 12px; }
+        .dot-br { bottom: 12px; right: 12px; }
+        
+        /* Orta Kenar Noktaları (Sadece 6 için kullanılır) */
+        .dot-ml { top: 50%; left: 12px; transform: translateY(-50%); }
+        .dot-mr { top: 50%; right: 12px; transform: translateY(-50%); }
+
+        /* Basit bir sallanma animasyonu için */
+        .dice.rolling {
+            animation: roll-animation 0.3s infinite alternate;
+        }
+        @keyframes roll-animation {
+            from { transform: rotateX(5deg) rotateY(-5deg); }
+            to { transform: rotateX(-5deg) rotateY(5deg); }
+        }
+        
+        /* Responsive ayarlar: Zar küçülünce dotları da küçült */
+        @media (max-width: 640px) {
+            .dice {
+                width: 50px;
+                height: 50px;
+            }
+            .dot {
+                width: 8px;
+                height: 8px;
+            }
+            /* Konumları da küçült */
+            .dot-tl { top: 10px; left: 10px; }
+            .dot-tr { top: 10px; right: 10px; }
+            .dot-bl { bottom: 10px; left: 10px; }
+            .dot-br { bottom: 10px; right: 10px; }
+            .dot-ml { top: 50%; left: 10px; transform: translateY(-50%); }
+            .dot-mr { top: 50%; right: 10px; transform: translateY(-50%); }
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Ana Uygulama Kartı -->
+    <div class="w-full max-w-lg bg-white rounded-xl shadow-2xl p-6 md:p-10 border border-gray-100">
+        
+        <h1 class="text-3xl font-extrabold text-indigo-700 mb-6 text-center">
+            Farcaster Zar Atma Oyunu
+        </h1>
+        
+        <!-- Tab Menüsü -->
+        <div class="flex border-b border-gray-200 mb-6">
+            <button id="tab-game" onclick="showTab('game')" class="py-2 px-4 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600 hover:text-indigo-800 transition duration-150">
+                Oyun
+            </button>
+            <button id="tab-scores" onclick="showTab('scores')" class="py-2 px-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition duration-150 ml-4">
+                Skor Tablosu
+            </button>
+        </div>
+
+        <!-- Oyun Sekmesi İçeriği -->
+        <div id="game-tab" class="tab-content">
+            <!-- Kullanıcı Bilgisi & Durum Kartı -->
+            <div id="status-card" class="bg-yellow-50 border border-yellow-200 p-4 rounded-lg shadow-inner mb-6">
+                <p id="status-text" class="text-yellow-700 font-medium text-sm flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-yellow-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Farcaster Kimliği alınıyor...
+                </p>
+            </div>
+
+            <div id="game-area" class="hidden">
+                <div class="flex flex-col items-center mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p class="text-lg font-medium text-gray-600">Hedef Sayınız (2 zar toplamı):</p>
+                    <p id="target-number" class="text-6xl font-extrabold text-indigo-600 mt-1 mb-4">--</p>
+                </div>
+                
+                <!-- Zar Alanı: Başlangıçta soru işareti gösterecek -->
+                <div class="dice-container">
+                    <div id="dice1" class="dice">
+                        <div class="dice-face text-3xl font-bold text-gray-400">?</div>
+                    </div>
+                    <div id="dice2" class="dice">
+                        <div class="dice-face text-3xl font-bold text-gray-400">?</div>
+                    </div>
+                </div>
+
+                <div id="roll-result" class="text-center mb-6">
+                    <p id="roll-message" class="text-xl font-semibold text-gray-700">Zar atmak için butona basın.</p>
+                    <p id="current-score" class="text-base font-medium text-gray-500 mt-2">Mevcut Puanınız: <span id="player-score" class="font-bold text-indigo-600">0</span></p>
+                </div>
+
+                <button id="roll-button" onclick="rollDice()" disabled
+                    class="w-full py-3 px-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition duration-150 shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 disabled:bg-indigo-300">
+                    Zar At!
+                </button>
+            </div>
+        </div>
+        
+        <!-- Skor Tablosu Sekmesi İçeriği -->
+        <div id="scores-tab" class="tab-content hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">En İyi Skorlar</h2>
+            <div id="scores-list" class="space-y-3">
+                <p class="text-gray-500 text-center" id="scores-loading">Skorlar yükleniyor...</p>
+                <!-- Skorlar buraya JS ile eklenecek -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Farcaster MiniApp SDK ve Firebase Scriptleri -->
+    <script type="module">
+        // Firebase ve Farcaster SDK importları
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, query, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
+
+        // Firestore ve Farcaster Ayarları
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth;
+        let userId = null;
+        let fid = null;
+        let targetNumber = 0;
+        let currentScore = 0;
+
+        // DOM Elementleri
+        const statusText = document.getElementById('status-text');
+        const statusCard = document.getElementById('status-card');
+        const gameArea = document.getElementById('game-area');
+        const rollButton = document.getElementById('roll-button');
+        const targetNumberEl = document.getElementById('target-number');
+        const playerScoreEl = document.getElementById('player-score');
+        const rollMessageEl = document.getElementById('roll-message');
+        const dice1El = document.getElementById('dice1');
+        const dice2El = document.getElementById('dice2');
+        const scoresListEl = document.getElementById('scores-list');
+        const scoresLoadingEl = document.getElementById('scores-loading');
+
+        // Firestore Koleksiyon Yolları
+        const getScoresCollectionPath = () => `/artifacts/${appId}/public/data/dice_scores`;
+        const getPlayerDocPath = (uid) => `/artifacts/${appId}/users/${uid}/player_data/dice_game`;
+
+        /**
+         * Başlangıçta Farcaster Quick Auth ile kullanıcı kimliğini alır.
+         */
+        async function authenticateFarcasterUser() {
+            try {
+                // Düzeltme: authenticate fonksiyonu sdk.auth altında olmalı.
+                const response = await sdk.auth.authenticate();
+                
+                // 2. Kimlik Başarılı
+                if (response && response.fid) {
+                    fid = response.fid;
+                    console.log(`Farcaster FID alındı: ${fid}`);
+
+                    // Durumu güncelle
+                    statusCard.classList.remove('bg-yellow-50', 'border-yellow-200');
+                    statusCard.classList.add('bg-blue-50', 'border-blue-200');
+                    statusText.innerHTML = `Hoş geldin, FID: <span class="font-bold">${fid}</span>! Oyun Başlatılıyor...`;
+                    
+                    await initializeFirebase();
+                } else {
+                    // Kullanıcı izni reddetti veya yanıt alınamadı
+                    throw new Error("Farcaster Quick Auth reddedildi veya FID alınamadı.");
+                }
+            } catch (error) {
+                console.error('Farcaster Kimlik Doğrulama Hatası:', error);
+                
+                statusCard.classList.remove('bg-yellow-50', 'border-yellow-200');
+                statusCard.classList.add('bg-red-50', 'border-red-200');
+                statusText.innerHTML = 'Hata: Kimlik Doğrulama Gerekli. Lütfen Mini Uygulamaya erişim izni verin.';
+            }
+        }
+
+        /**
+         * Firebase'i başlatır, kimlik doğrular ve Firestore'dan verileri çeker.
+         */
+        async function initializeFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // Canvas'ın sağladığı özel token ile giriş yap
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                console.log(`Firebase UID: ${userId}`);
+                
+                // Oyuncunun mevcut puanını ve hedef sayısını yükle
+                await loadPlayerData();
+
+                // Skor tablosu dinleyicisini başlat
+                setupScoresListener();
+                
+                // Düzeltme: ready fonksiyonu sdk.actions altında olmalı.
+                await sdk.actions.ready(); 
+
+                // Başarılı yükleme durumu
+                statusCard.classList.remove('bg-blue-50', 'border-blue-200');
+                statusCard.classList.add('bg-green-50', 'border-green-200');
+                statusText.innerHTML = `Bağlantı Başarılı. FID: <span class="font-bold">${fid}</span> | UID: ${userId}`;
+                
+                gameArea.classList.remove('hidden');
+                rollButton.disabled = false;
+
+            } catch (error) {
+                console.error('Firebase Başlatma Hatası:', error);
+                statusCard.classList.remove('bg-blue-50', 'border-blue-200');
+                statusCard.classList.add('bg-red-50', 'border-red-200');
+                statusText.innerHTML = 'Kritik Hata: Veritabanı bağlantısı kurulamadı.';
+            }
+        }
+        
+        /**
+         * Oyuncunun önceki puanını ve mevcut hedef sayısını Firestore'dan yükler.
+         */
+        async function loadPlayerData() {
+            const docRef = doc(db, getPlayerDocPath(userId));
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                currentScore = data.score || 0;
+                targetNumber = data.target || generateRandomTarget();
+            } else {
+                // Yeni oyuncu, yeni hedef sayı belirle
+                targetNumber = generateRandomTarget();
+                currentScore = 0;
+                // Veriyi kaydetmeye gerek yok, ilk zar atışında kaydedilir.
+            }
+
+            playerScoreEl.textContent = currentScore;
+            targetNumberEl.textContent = targetNumber;
+        }
+
+        /**
+         * Oyuncunun puanını ve hedef sayısını Firestore'a kaydeder.
+         */
+        async function savePlayerData() {
+            if (!userId) return; // Kullanıcı kimliği yoksa kaydetme
+
+            const docRef = doc(db, getPlayerDocPath(userId));
+            await setDoc(docRef, {
+                uid: userId,
+                fid: fid, // Farcaster ID'yi de kaydet (kolay tanımlama için)
+                score: currentScore,
+                target: targetNumber,
+                lastUpdated: new Date().toISOString()
+            }, { merge: true });
+
+            // Ortak skor tablosunu güncelle
+            const publicDocRef = doc(db, getScoresCollectionPath(), fid.toString());
+            await setDoc(publicDocRef, {
+                fid: fid,
+                score: currentScore,
+                lastUpdated: new Date().toISOString(),
+                // Diğer Farcaster kullanıcı bilgilerini (kullanıcı adı vb.) eklemek için
+                // Farcaster API'leri kullanılabilir, şimdilik sadece FID ve skor yeterli.
+            }, { merge: true });
+            
+            console.log(`Veri başarıyla kaydedildi. Mevcut Puan: ${currentScore}, Hedef: ${targetNumber}`);
+        }
+        
+        /**
+         * 2 ile 12 arasında rastgele bir hedef sayı belirler.
+         */
+        function generateRandomTarget() {
+            return Math.floor(Math.random() * 11) + 2; // (12 - 2 + 1) = 11, + 2 (min değer)
+        }
+        
+        /**
+         * Zar atma animasyonunu ve mantığını çalıştırır.
+         */
+        async function rollDice() {
+            rollButton.disabled = true;
+            rollMessageEl.textContent = 'Zarlar sallanıyor...';
+            
+            // Düzeltme: Haptics fonksiyonları sdk.actions altında olmalı.
+            await sdk.actions.haptics.impactOccurred({ style: 'medium' });
+
+            // Animasyon başlangıcı
+            dice1El.classList.add('rolling');
+            dice2El.classList.add('rolling');
+
+            // 500ms sonra sonucu göster
+            setTimeout(async () => {
+                const die1 = Math.floor(Math.random() * 6) + 1;
+                const die2 = Math.floor(Math.random() * 6) + 1;
+                const total = die1 + die2;
+                
+                // Animasyon durdurma
+                dice1El.classList.remove('rolling');
+                dice2El.classList.remove('rolling');
+                
+                // Zar görünümlerini güncelle (DOTS!)
+                updateDiceDisplay(dice1El, die1);
+                updateDiceDisplay(dice2El, die2);
+
+                let points = 0;
+                let message = '';
+                
+                // Puanlama Mantığı
+                if (total > targetNumber) {
+                    points = 2;
+                    message = `Tebrikler! ${total} > ${targetNumber}. +${points} Puan!`;
+                    // Düzeltme: Haptics fonksiyonları sdk.actions altında olmalı.
+                    await sdk.actions.haptics.notificationOccurred({ type: 'success' });
+                } else if (total === targetNumber) {
+                    points = 3;
+                    message = `Mükemmel! ${total} = ${targetNumber}. +${points} Puan (Eşitlik Bonusu)!`;
+                    // Düzeltme: Haptics fonksiyonları sdk.actions altında olmalı.
+                    await sdk.actions.haptics.notificationOccurred({ type: 'success' });
+                } else {
+                    points = 0;
+                    message = `Maalesef. ${total} < ${targetNumber}. +${points} Puan. Tekrar deneyin.`;
+                    // Düzeltme: Haptics fonksiyonları sdk.actions altında olmalı.
+                    await sdk.actions.haptics.notificationOccurred({ type: 'warning' });
+                }
+                
+                // Puanı güncelle
+                currentScore += points;
+                playerScoreEl.textContent = currentScore;
+                rollMessageEl.textContent = message;
+
+                // Yeni bir hedef sayı belirle ve kaydet
+                targetNumber = generateRandomTarget();
+                targetNumberEl.textContent = targetNumber;
+                
+                await savePlayerData();
+
+                rollButton.disabled = false;
+            }, 500); // Zar atma animasyonu süresi
+        }
+
+        /**
+         * Zar değeri için nokta (dot) HTML'ini döndürür.
+         * Dot Konumlandırma Sınıfları CSS'te tanımlanmıştır.
+         */
+        function generateDiceDots(value) {
+            const dotClasses = {
+                1: ['dot-center'],
+                2: ['dot-tl', 'dot-br'],
+                3: ['dot-tl', 'dot-center', 'dot-br'],
+                4: ['dot-tl', 'dot-tr', 'dot-bl', 'dot-br'],
+                5: ['dot-tl', 'dot-tr', 'dot-center', 'dot-bl', 'dot-br'],
+                6: ['dot-tl', 'dot-tr', 'dot-ml', 'dot-mr', 'dot-bl', 'dot-br']
+            };
+
+            let html = '';
+            
+            if (dotClasses[value]) {
+                dotClasses[value].forEach(className => {
+                    html += `<div class="dot ${className}"></div>`;
+                });
+            }
+
+            return html;
+        }
+        
+        /**
+         * Zarın görünümünü atılan sayıya göre günceller.
+         */
+        function updateDiceDisplay(diceElement, value) {
+            // dice-face'in içindeki soru işaretini dot'larla değiştiriyoruz
+            const diceFaceContent = generateDiceDots(value);
+            diceElement.innerHTML = `<div class="dice-face">${diceFaceContent}</div>`;
+        }
+
+        /**
+         * Skor tablosunu Firestore'dan dinler ve günceller.
+         */
+        function setupScoresListener() {
+            const scoresRef = collection(db, getScoresCollectionPath());
+            const q = query(scoresRef, limit(10)); // İlk 10 skoru al
+
+            onSnapshot(q, (snapshot) => {
+                scoresListEl.innerHTML = '';
+                scoresLoadingEl.style.display = 'none';
+
+                let scores = [];
+                snapshot.forEach((doc) => {
+                    scores.push(doc.data());
+                });
+
+                // Skorları puana göre sırala (Firestore'da orderBy kullanmaktan kaçındık)
+                scores.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+                if (scores.length === 0) {
+                    scoresListEl.innerHTML = '<p class="text-gray-500 text-center">Henüz skor yok. İlk zarı sen at!</p>';
+                    return;
+                }
+
+                scores.forEach((data, index) => {
+                    const isCurrentUser = data.fid == fid;
+                    const itemClass = isCurrentUser ? 'bg-indigo-100 border-indigo-500' : 'bg-white border-gray-200';
+                    const textClass = isCurrentUser ? 'text-indigo-800 font-bold' : 'text-gray-700';
+                    
+                    const scoreItem = `
+                        <div class="flex justify-between items-center p-3 rounded-lg border shadow-sm ${itemClass}">
+                            <div class="flex items-center">
+                                <span class="w-6 text-center font-extrabold text-lg mr-3 ${isCurrentUser ? 'text-indigo-600' : 'text-gray-400'}">${index + 1}.</span>
+                                <span class="${textClass}">${isCurrentUser ? 'Siz (FID: ' + data.fid + ')' : 'FID: ' + data.fid}</span>
+                            </div>
+                            <span class="text-xl font-extrabold ${isCurrentUser ? 'text-indigo-700' : 'text-gray-900'}">${data.score || 0}</span>
+                        </div>
+                    `;
+                    scoresListEl.innerHTML += scoreItem;
+                });
+            }, (error) => {
+                console.error("Skor tablosu dinlenirken hata oluştu:", error);
+                scoresListEl.innerHTML = '<p class="text-red-500 text-center">Skorlar yüklenirken hata oluştu.</p>';
+            });
+        }
+
+        // Genel fonksiyonlar
+        window.rollDice = rollDice; // HTML'den çağrılması için global yap
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('button[id^="tab-"]').forEach(el => el.classList.remove('border-indigo-500', 'text-indigo-600', 'hover:text-indigo-800'));
+            document.querySelectorAll('button[id^="tab-"]').forEach(el => el.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700'));
+
+            document.getElementById(`${tabName}-tab`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700');
+            document.getElementById(`tab-${tabName}`).classList.add('border-indigo-500', 'text-indigo-600', 'hover:text-indigo-800');
+        }
+
+        // Başlangıçta oyun sekmesini göster
+        window.onload = () => {
+            showTab('game');
+            authenticateFarcasterUser();
+        };
+
+        window.showTab = showTab; // HTML'den çağrılması için global yap
+    </script>
+</body>
+</html>
